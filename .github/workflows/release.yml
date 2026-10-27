@@ -1,0 +1,79 @@
+name: Release
+
+# Started by hand from the Actions tab on `main`, with the version to publish as input.
+# Publishes to crates.io through trusted publishing (no stored token), then creates the tag
+# and the GitHub release from the published commit, so a tag only ever marks a version that
+# actually shipped.
+#
+# One-time setup after the first manual publish: on crates.io, under the crate's settings,
+# add a trusted publisher for repository ironbirdlabs/slip39-core, workflow release.yml,
+# environment release.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish, exactly as in Cargo.toml (for example 0.1.1)"
+        required: true
+        type: string
+
+permissions:
+  contents: write # push the tag, create the release
+  id-token: write # trusted publishing to crates.io
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Check the version, the changelog entry, and that the tag is new
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          manifest=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
+          if [ "$VERSION" != "$manifest" ]; then
+            echo "input '$VERSION' does not match Cargo.toml version '$manifest'"; exit 1
+          fi
+          if ! grep -q "^## \[$VERSION\] - " CHANGELOG.md; then
+            echo "CHANGELOG.md has no entry for $VERSION"; exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null; then
+            echo "tag v$VERSION already exists"; exit 1
+          fi
+
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+      - run: cargo check --no-default-features
+      - run: pip install shamir-mnemonic==0.3.0
+      - run: tests/interop/run.sh
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
+      - run: cargo publish --dry-run
+
+      - uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6
+        id: auth
+      - run: cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+
+      - name: Tag and create the GitHub release
+        env:
+          VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          awk -v v="$VERSION" '$0 ~ "^## \\[" v "\\] - " {p=1; next} /^## \[/ {p=0} p' CHANGELOG.md > notes.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "v$VERSION" -m "v$VERSION"
+          git push origin "v$VERSION"
+          gh release create "v$VERSION" --title "v$VERSION" --notes-file notes.md
