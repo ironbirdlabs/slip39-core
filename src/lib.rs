@@ -13,6 +13,23 @@
 //! Buffers holding secrets are wrapped in [`Zeroizing`], which attempts to overwrite them when
 //! dropped. This is best effort: it does not cover copies made by the compiler, allocator or
 //! operating system, nor the mnemonic strings returned to the caller.
+//!
+//! # Example
+//!
+//! ```
+//! use slip39_core::{combine_mnemonics, generate_mnemonics, GroupSpec};
+//!
+//! let secret = [0x42u8; 32];
+//!
+//! // One group of five shares, any three of which recover the secret.
+//! let groups = generate_mnemonics(1, &[GroupSpec::new(3, 5)], &secret, b"", true, 1)?;
+//! let shares: Vec<&str> = groups[0].iter().map(String::as_str).collect();
+//!
+//! // Later, with three of them, in any order.
+//! let recovered = combine_mnemonics(&shares[1..4], b"")?;
+//! assert_eq!(*recovered, secret);
+//! # Ok::<(), slip39_core::Error>(())
+//! ```
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]

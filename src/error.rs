@@ -4,6 +4,30 @@ use std::fmt;
 
 /// Why an operation was rejected. Group numbers in the data fields are zero-based group
 /// indices, as carried in share headers. New variants may be added in minor releases.
+///
+/// # Example
+///
+/// ```
+/// use slip39_core::{combine_mnemonics, Error, Share};
+///
+/// // A word that is not in the list is reported with its position.
+/// let typo = "duckling enlarge academic academic agency result length solution fridge \
+///             kidney coal piece deal husband erode duke ajar critical decision zebra";
+/// match Share::from_mnemonic(typo) {
+///     Err(Error::InvalidWord { position }) => assert_eq!(position, 19),
+///     other => panic!("unexpected: {other:?}"),
+/// }
+///
+/// // One share of a 2-of-3 set: recovery says exactly what is missing.
+/// let one = "shadow pistol academic always adequate wildlife fancy gross oasis cylinder \
+///            mustang wrist rescue view short owner flip making coding armed";
+/// match combine_mnemonics(&[one], b"") {
+///     Err(Error::WrongMemberCount { group, have, need }) => {
+///         assert_eq!((group, have, need), (0, 1, 2));
+///     }
+///     other => panic!("unexpected: {other:?}"),
+/// }
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Error {

@@ -66,6 +66,28 @@ Three more things are exposed for callers that need them:
 - `Share::from_mnemonic` and `Share::to_mnemonic` encode and decode single shares, and
   `wordlist()` exposes the 1024 words.
 
+For a worked application, see [keyshard](https://github.com/ironbirdlabs/keyshard), a small
+tool built on this crate that backs up a key file as shares.
+
+## Choosing parameters
+
+- **Layout.** A single group, such as 2-of-3 or 3-of-5, is the simplest arrangement. Groups
+  model distinct sets of custodians: the specification's worked example is 2 of 4 groups,
+  consisting of a 1-of-1, a 1-of-1, a 3-of-5 and a 2-of-6. A group with threshold 1 may hold
+  only one member; the specification forbids more because any one of them alone would carry the
+  whole group's share.
+- **Extendable.** The specification says newly created shares should set this flag, and current
+  Trezor firmware does. Clear it only to produce the pre-2024 format for software that predates
+  the flag.
+- **Iteration exponent.** The passphrase cipher runs PBKDF2 for `10000 << e` iterations. The
+  reference implementation's default is 1, about 20,000 iterations, which takes a fraction of a
+  second on a laptop. Higher values make guessing a passphrase slower, and recovery slower by
+  the same factor.
+- **Passphrase.** Optional. Left empty, the shares alone recover the secret. See "Things to
+  know" below for how a wrong passphrase behaves.
+- **Secret size.** 32 bytes for a key; 16 bytes when a 128-bit secret is all that is needed.
+  These are the two sizes every SLIP-39 implementation supports.
+
 ## Command line
 
 A small example binary exists for scripting and interoperability checks. It does not accept a
