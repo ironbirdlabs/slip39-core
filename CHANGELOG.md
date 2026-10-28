@@ -5,6 +5,24 @@ format. Version numbers follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-28
+
+Follow-ups from an outside review. No change to the share format or the public API.
+
+- `combine_mnemonics` documents that the shares decide the key-derivation cost, up to
+  `10000 << 15` iterations, with an example that checks the exponent through
+  `EncryptedSecret` before decrypting.
+- Word lookup during decoding compares every list entry with a constant-time comparison rather
+  than stopping at the first match, encoding selects each word the same way, and the digest
+  check uses a constant-time comparison.
+- `Share::new` records why a group index is not checked against the group count: the
+  reference implementation accepts such shares, and this crate follows it on input.
+- A randomized differential test against the reference implementation, run by
+  `tests/interop/run.sh` and so on every CI build: random secret sizes, group structures,
+  passphrases, flags and exponents, in both directions.
+- The CLI example takes `--exponent`.
+- CI actions pinned to commit hashes, as the release workflow's already were.
+
 ## [0.1.1] - 2026-10-27
 
 Documentation only; no change to the code.
@@ -28,6 +46,7 @@ First release.
 - Tests: the 45 reference vectors with expected error variants, black-box API tests, a two-way
   interoperability check against the reference Python implementation, and three fuzz targets.
 
-[Unreleased]: https://github.com/ironbirdlabs/slip39-core/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/ironbirdlabs/slip39-core/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/ironbirdlabs/slip39-core/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/ironbirdlabs/slip39-core/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ironbirdlabs/slip39-core/releases/tag/v0.1.0

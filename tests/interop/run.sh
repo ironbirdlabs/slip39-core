@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Exchanges shares with Trezor's reference implementation in both directions.
+# Exchanges shares with Trezor's reference implementation in both directions: five fixed cases,
+# then ROUNDS (default 50) randomized ones; SEED repeats a particular randomized run.
 # Needs the Python package `shamir-mnemonic` importable by $PYTHON (default: python3).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -40,6 +41,12 @@ check "reference generate -> Rust combine, upper-cased words" \
 S=$(hex 16); $REF generate "$S" 1 '' 0 0 2of2 > "$WORK/d"
 check "reference generate -> Rust combine, 128-bit, non-extendable, 2of2" \
     "$($CLI combine < "$WORK/d")" "$S"
+
+if "$PYTHON" -I tests/interop/random_rounds.py "$CLI" "${ROUNDS:-50}" ${SEED:+"$SEED"}; then
+    pass=$((pass + 1))
+else
+    fail=$((fail + 1))
+fi
 
 echo "passed=$pass failed=$fail"
 [ "$fail" -eq 0 ]

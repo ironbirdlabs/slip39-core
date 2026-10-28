@@ -191,7 +191,7 @@ dependencies = [
 
 [[package]]
 name = "slip39-core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "getrandom",
  "hex",
@@ -199,6 +199,7 @@ dependencies = [
  "pbkdf2",
  "serde_json",
  "sha2",
+ "subtle",
  "zeroize",
 ]
 

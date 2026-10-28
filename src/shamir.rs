@@ -4,6 +4,7 @@
 
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
+use subtle::ConstantTimeEq;
 use zeroize::Zeroizing;
 
 use crate::gf256::interpolate;
@@ -65,7 +66,7 @@ pub(crate) fn recover_secret(threshold: u8, shares: &[(u8, &[u8])]) -> Result<Se
     let secret = interpolate(shares, SECRET_INDEX)?;
     let digest_share = interpolate(shares, DIGEST_INDEX)?;
     let (d, random_part) = digest_share.split_at(DIGEST_LEN);
-    if d != digest(random_part, &secret) {
+    if !bool::from(d.ct_eq(&digest(random_part, &secret)[..])) {
         return Err(Error::Digest);
     }
     Ok(secret)

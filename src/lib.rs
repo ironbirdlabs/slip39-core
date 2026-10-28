@@ -115,6 +115,39 @@ pub fn generate_mnemonics_with_rng<R: RandomSource + ?Sized>(
 /// Recover the master secret from exactly a threshold number of groups, each holding exactly
 /// its member threshold of mnemonics. Order does not matter, identical duplicates are ignored,
 /// and word case is ignored. The result is returned in a [`Zeroizing`] wrapper.
+///
+/// The shares decide the cost of this call: the passphrase cipher runs PBKDF2 for
+/// `10000 << e` iterations at the iteration exponent they carry, which is over three hundred
+/// million iterations at the maximum exponent of 15. Shares from an untrusted source can
+/// therefore demand minutes of work. To put a ceiling on that, decode and assemble the shares
+/// first, which runs no key derivation, check the exponent, and decrypt only if it is
+/// acceptable:
+///
+/// ```
+/// use slip39_core::{EncryptedSecret, Error, Share, Zeroizing};
+///
+/// fn combine_bounded(
+///     mnemonics: &[&str],
+///     passphrase: &[u8],
+///     max_exponent: u8,
+/// ) -> Result<Zeroizing<Vec<u8>>, Error> {
+///     let shares = mnemonics
+///         .iter()
+///         .map(|m| Share::from_mnemonic(m))
+///         .collect::<Result<Vec<Share>, Error>>()?;
+///     let encrypted = EncryptedSecret::recover(&shares)?;
+///     if encrypted.iteration_exponent() > max_exponent {
+///         return Err(Error::InvalidExponent);
+///     }
+///     Ok(encrypted.decrypt(passphrase))
+/// }
+/// # use slip39_core::{generate_mnemonics, GroupSpec};
+/// # let groups = generate_mnemonics(1, &[GroupSpec::new(2, 3)], &[7u8; 16], b"", true, 2)?;
+/// # let shares: Vec<&str> = groups[0].iter().map(String::as_str).collect();
+/// # assert_eq!(*combine_bounded(&shares[..2], b"", 2)?, [7u8; 16]);
+/// # assert_eq!(combine_bounded(&shares[..2], b"", 1), Err(Error::InvalidExponent));
+/// # Ok::<(), Error>(())
+/// ```
 pub fn combine_mnemonics<S: AsRef<str>>(
     mnemonics: &[S],
     passphrase: &[u8],
