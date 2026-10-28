@@ -9,7 +9,7 @@ Shamir's Secret Sharing for mnemonic codes. It splits a secret of 16 bytes or mo
 of word lists and attempts to recover it from a threshold of them. It is intended to follow the
 SLIP-39 specification published by SatoshiLabs.
 
-About 750 lines and five dependencies. It includes the two-level group scheme, the passphrase
+About 850 lines and six dependencies. It includes the two-level group scheme, the passphrase
 cipher, and the extendable backup flag.
 
 ```toml
@@ -82,7 +82,9 @@ tool built on this crate that backs up a key file as shares.
 - **Iteration exponent.** The passphrase cipher runs PBKDF2 for `10000 << e` iterations. The
   reference implementation's default is 1, about 20,000 iterations, which takes a fraction of a
   second on a laptop. Higher values make guessing a passphrase slower, and recovery slower by
-  the same factor.
+  the same factor. Shares carry the exponent, so when recovering shares from a source you do
+  not trust, the shares set the cost; the `combine_mnemonics` documentation shows how to check
+  the exponent before paying it.
 - **Passphrase.** Optional. Left empty, the shares alone recover the secret. See "Things to
   know" below for how a wrong passphrase behaves.
 - **Secret size.** 32 bytes for a key; 16 bytes when a 128-bit secret is all that is needed.
@@ -104,13 +106,14 @@ sed -n '1p;2,4p' shares.txt | cargo run -q --example cli -- combine
 
 Add `--passphrase-file PATH` to either command to use a passphrase stored in a file whose
 permissions you have restricted, for example with `chmod 600`. Add `--no-ext` to `split` for the
-pre-2024 share format.
+pre-2024 share format, and `--exponent E` to set the iteration exponent, which defaults to 0.
 
 ## Testing
 
 ```sh
-cargo test                                   # unit tests, README example, 45 reference vectors
+cargo test                                   # unit tests, doc examples, 45 reference vectors
 tests/interop/run.sh                         # needs `pip install shamir-mnemonic`
+ROUNDS=500 tests/interop/run.sh              # more randomized rounds against the reference
 cargo +nightly fuzz run decode_words         # needs cargo-fuzz; see fuzz/ for three targets
 ```
 
@@ -131,9 +134,9 @@ by SLIP-39, not by this crate, so it does not change with the crate version.
 - Buffers holding secrets are wrapped in `Zeroizing`, which attempts to overwrite them when
   dropped. This is best effort: it does not cover copies the compiler, allocator or operating
   system may make, swap, core dumps, or the mnemonic strings returned to you.
-- The GF(256) multiply is written without lookup tables or data-dependent branches. No claim is
-  made that any part of this crate runs in constant time or resists side-channel attacks; the
-  digest comparison, for one, is ordinary equality.
+- The GF(256) multiply is written without lookup tables or data-dependent branches, the digest
+  check is a constant-time comparison, and word lookup compares every entry of the list rather
+  than stopping at a match.
 - Randomness is requested from the operating system through `getrandom`.
 - Requires Rust 1.87 or newer.
 

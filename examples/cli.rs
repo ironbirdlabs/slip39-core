@@ -1,6 +1,6 @@
 //! Tiny CLI, mainly for interoperability checks against other implementations.
 //!
-//!   cli split <group-threshold> <t>of<n>... [--no-ext] [--passphrase-file PATH]
+//!   cli split <group-threshold> <t>of<n>... [--no-ext] [--exponent E] [--passphrase-file PATH]
 //!       reads the hex-encoded secret from stdin, prints one mnemonic per line
 //!   cli combine [--passphrase-file PATH]
 //!       reads one mnemonic per line from stdin, prints the hex-encoded secret
@@ -14,8 +14,10 @@ use std::process::exit;
 use slip39_core::{GroupSpec, Zeroizing};
 
 const USAGE: &str = "\
-usage: cli split <group-threshold> <t>of<n>... [--no-ext] [--passphrase-file PATH]   (hex secret on stdin)
-       cli combine [--passphrase-file PATH]                                      (mnemonics on stdin)";
+usage: cli split <group-threshold> <t>of<n>... [--no-ext] [--exponent E] [--passphrase-file PATH]
+           (hex secret on stdin; E is the iteration exponent, 0 to 15, default 0)
+       cli combine [--passphrase-file PATH]
+           (mnemonics on stdin)";
 
 fn fail(msg: &str) -> ! {
     eprintln!("error: {msg}");
@@ -50,7 +52,8 @@ fn read_passphrase(path: Option<&str>) -> Zeroizing<Vec<u8>> {
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let (mut passphrase_file, mut extendable, mut positional) = (None, true, Vec::new());
+    let (mut passphrase_file, mut extendable, mut exponent, mut positional) =
+        (None, true, 0u8, Vec::new());
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
@@ -61,6 +64,14 @@ fn main() {
                         .cloned()
                         .unwrap_or_else(|| fail("--passphrase-file needs a path")),
                 );
+            }
+            "--exponent" => {
+                i += 1;
+                exponent = args
+                    .get(i)
+                    .and_then(|e| e.parse().ok())
+                    .filter(|e| *e <= 15)
+                    .unwrap_or_else(|| fail("--exponent needs a number from 0 to 15"));
             }
             "--no-ext" => extendable = false,
             other => positional.push(other.to_string()),
@@ -108,7 +119,7 @@ fn main() {
                 &secret,
                 &passphrase,
                 extendable,
-                0,
+                exponent,
             )
             .unwrap_or_else(|e| fail(&e.to_string()));
             for mnemonic in groups.iter().flatten() {

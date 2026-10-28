@@ -4,6 +4,7 @@
 use std::fmt;
 use std::sync::OnceLock;
 
+use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 use zeroize::Zeroizing;
 
 use crate::rs1024::{self, CHECKSUM_WORDS};
@@ -17,6 +18,9 @@ const METADATA_WORDS: usize = 2 + 2 + CHECKSUM_WORDS; // id/ext/exp, share param
 const MIN_MNEMONIC_WORDS: usize = METADATA_WORDS + 13; // 13 words hold a 128-bit value
 /// The shortest master secret, and therefore share value, the specification allows.
 pub(crate) const MIN_SECRET_BYTES: usize = 16;
+const WORD_COUNT: usize = 1024;
+/// Every word in the list has four to eight ASCII letters.
+const WORD_BYTES: usize = 8;
 
 /// The customization string for the checksum, which also selects the cipher salt rule.
 pub(crate) fn customization(extendable: bool) -> &'static [u8] {
@@ -31,6 +35,54 @@ pub(crate) fn customization(extendable: bool) -> &'static [u8] {
 pub fn wordlist() -> &'static [&'static str] {
     static WORDS: OnceLock<Vec<&'static str>> = OnceLock::new();
     WORDS.get_or_init(|| include_str!("wordlist.txt").split_whitespace().collect())
+}
+
+/// The word list as fixed-width, zero-padded byte arrays, for the lookups below.
+fn padded_wordlist() -> &'static [[u8; WORD_BYTES]; WORD_COUNT] {
+    static PADDED: OnceLock<[[u8; WORD_BYTES]; WORD_COUNT]> = OnceLock::new();
+    PADDED.get_or_init(|| {
+        let words = wordlist();
+        assert_eq!(words.len(), WORD_COUNT);
+        let mut table = [[0u8; WORD_BYTES]; WORD_COUNT];
+        for (entry, word) in table.iter_mut().zip(words) {
+            entry[..word.len()].copy_from_slice(word.as_bytes());
+        }
+        table
+    })
+}
+
+/// The index of `word` in the list, or `None`. Every entry is compared, with a comparison that
+/// does not stop at the first differing byte, so the scan does not finish early for words near
+/// the front of the list. Case is ignored, as in the reference implementation; the list is ASCII.
+fn word_index(word: &str) -> Option<u16> {
+    let fits = word.len() <= WORD_BYTES && word.is_ascii();
+    let mut probe = [0u8; WORD_BYTES];
+    if fits {
+        for (p, b) in probe.iter_mut().zip(word.bytes()) {
+            *p = b.to_ascii_lowercase();
+        }
+    }
+    let mut index = 0u16;
+    let mut found = Choice::from(0);
+    for (i, entry) in padded_wordlist().iter().enumerate() {
+        let hit = entry[..].ct_eq(&probe[..]);
+        index.conditional_assign(&(i as u16), hit);
+        found |= hit;
+    }
+    (fits && bool::from(found)).then_some(index)
+}
+
+/// The word at `index`, zero-padded, selected by comparing `index` against every position
+/// rather than by indexing the list with it.
+fn word_at(index: u16) -> Zeroizing<[u8; WORD_BYTES]> {
+    let mut out = Zeroizing::new([0u8; WORD_BYTES]);
+    for (i, entry) in padded_wordlist().iter().enumerate() {
+        let hit = index.ct_eq(&(i as u16));
+        for (o, e) in out.iter_mut().zip(entry) {
+            o.conditional_assign(e, hit);
+        }
+    }
+    out
 }
 
 /// Pack bytes big-endian into 10-bit words, zero-padded on the left to a word boundary.
@@ -140,6 +192,9 @@ impl Share {
     /// Build a share after checking the header fields and the value length.
     pub fn new(header: ShareHeader, value: impl Into<Secret>) -> Result<Share, Error> {
         let h = header;
+        // The group index is checked against the maximum, not against the group count. A share
+        // claiming group 7 of 2 is inconsistent, but the reference implementation accepts it,
+        // and on input this crate follows the reference rather than being stricter than it.
         let in_range = h.identifier < 1 << ID_BITS
             && h.iteration_exponent < 1 << EXP_BITS
             && h.group_index < MAX_SHARE_COUNT
@@ -195,28 +250,23 @@ impl Share {
         // Build the string directly rather than through a temporary vector of word pointers,
         // which would be freed without being overwritten. Words are at most 8 letters, so the
         // capacity is intended to avoid reallocation.
-        let words = wordlist();
-        let mut out = String::with_capacity(data.len() * 9);
+        let mut out = String::with_capacity(data.len() * (WORD_BYTES + 1));
         for (k, &i) in data.iter().enumerate() {
             if k > 0 {
                 out.push(' ');
             }
-            out.push_str(words[i as usize]);
+            let word = word_at(i);
+            let len = word.iter().position(|&b| b == 0).unwrap_or(WORD_BYTES);
+            out.push_str(std::str::from_utf8(&word[..len]).expect("the word list is ASCII"));
         }
         out
     }
 
     /// Decode a mnemonic, checking its checksum and structure. Word case is ignored.
     pub fn from_mnemonic(mnemonic: &str) -> Result<Share, Error> {
-        let words = wordlist();
         let mut data = Zeroizing::new(Vec::with_capacity(mnemonic.split_whitespace().count()));
         for (position, word) in mnemonic.split_whitespace().enumerate() {
-            // Case-insensitive, like the reference implementation. The list is ASCII.
-            let index = words
-                .iter()
-                .position(|&x| x.eq_ignore_ascii_case(word))
-                .ok_or(Error::InvalidWord { position })?;
-            data.push(index as u16);
+            data.push(word_index(word).ok_or(Error::InvalidWord { position })?);
         }
         if data.len() < MIN_MNEMONIC_WORDS {
             return Err(Error::TooFewWords);
@@ -268,5 +318,19 @@ mod tests {
         let pad = words.len() * 10 - 128;
         words[0] |= 1 << (10 - pad); // set the lowest padding bit
         assert_eq!(words_to_bytes(&words, pad), Err(Error::Padding));
+    }
+
+    #[test]
+    fn word_lookup_agrees_with_the_list_in_both_directions() {
+        for (i, &word) in wordlist().iter().enumerate() {
+            assert_eq!(word_index(word), Some(i as u16), "{word}");
+            assert_eq!(word_index(&word.to_ascii_uppercase()), Some(i as u16));
+            let padded = word_at(i as u16);
+            assert_eq!(&padded[..word.len()], word.as_bytes());
+            assert!(padded[word.len()..].iter().all(|&b| b == 0));
+        }
+        for missing in ["", "zzz", "academics", "acadèmic", "123", "a b"] {
+            assert_eq!(word_index(missing), None, "{missing:?}");
+        }
     }
 }
