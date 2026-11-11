@@ -4,6 +4,11 @@
 //!       reads the hex-encoded secret from stdin, prints one mnemonic per line
 //!   cli combine [--passphrase-file PATH]
 //!       reads one mnemonic per line from stdin, prints the hex-encoded secret
+//!   cli decode
+//!       reads one mnemonic per line from stdin and prints one line for each: `ok` followed by
+//!       the identifier, extendable flag, iteration exponent, group index, group threshold,
+//!       group count, member index, member threshold and hex-encoded share value, or `error:`
+//!       followed by the reason it was rejected
 //!
 //! Secrets and passphrases are not accepted on the command line, since arguments can be recorded
 //! in shell history and are visible to other processes while the program runs.
@@ -11,13 +16,15 @@
 use std::io::Read;
 use std::process::exit;
 
-use slip39_core::{GroupSpec, Zeroizing};
+use slip39_core::{GroupSpec, Share, Zeroizing};
 
 const USAGE: &str = "\
 usage: cli split <group-threshold> <t>of<n>... [--no-ext] [--exponent E] [--passphrase-file PATH]
            (hex secret on stdin; E is the iteration exponent, 0 to 15, default 0)
        cli combine [--passphrase-file PATH]
-           (mnemonics on stdin)";
+           (mnemonics on stdin)
+       cli decode
+           (mnemonics on stdin; prints each share's fields, or why it was rejected)";
 
 fn fail(msg: &str) -> ! {
     eprintln!("error: {msg}");
@@ -136,6 +143,31 @@ fn main() {
             match slip39_core::combine_mnemonics(&lines, &passphrase) {
                 Ok(secret) => println!("{}", hex::encode(&*secret)),
                 Err(e) => fail(&e.to_string()),
+            }
+        }
+        Some("decode") if positional.len() == 1 => {
+            // One line out for every line in, blank ones included, so that a caller can compare
+            // many decodings with another implementation's in a single run.
+            let input = read_stdin();
+            for line in input.lines() {
+                match Share::from_mnemonic(line) {
+                    Ok(share) => {
+                        let h = share.header();
+                        println!(
+                            "ok {} {} {} {} {} {} {} {} {}",
+                            h.identifier,
+                            h.extendable as u8,
+                            h.iteration_exponent,
+                            h.group_index,
+                            h.group_threshold,
+                            h.group_count,
+                            h.member_index,
+                            h.member_threshold,
+                            hex::encode(share.value())
+                        );
+                    }
+                    Err(e) => println!("error: {e}"),
+                }
             }
         }
         _ => {

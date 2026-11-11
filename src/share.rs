@@ -53,9 +53,11 @@ fn padded_wordlist() -> &'static [[u8; WORD_BYTES]; WORD_COUNT] {
 
 /// The index of `word` in the list, or `None`. Every entry is compared, with a comparison that
 /// does not stop at the first differing byte, so the scan does not finish early for words near
-/// the front of the list. Case is ignored, as in the reference implementation; the list is ASCII.
+/// the front of the list. Case is ignored, as in the reference implementation. Only ASCII
+/// letters are accepted: the table pads short words with zero bytes, so a word followed by zero
+/// bytes would otherwise equal its own padded entry.
 fn word_index(word: &str) -> Option<u16> {
-    let fits = word.len() <= WORD_BYTES && word.is_ascii();
+    let fits = word.len() <= WORD_BYTES && word.bytes().all(|b| b.is_ascii_alphabetic());
     let mut probe = [0u8; WORD_BYTES];
     if fits {
         for (p, b) in probe.iter_mut().zip(word.bytes()) {
@@ -191,6 +193,8 @@ impl fmt::Debug for Share {
 impl Share {
     /// Build a share after checking the header fields and the value length.
     pub fn new(header: ShareHeader, value: impl Into<Secret>) -> Result<Share, Error> {
+        // Wrap the value before any check can return, so that it is overwritten on every path.
+        let value = value.into();
         let h = header;
         // The group index is checked against the maximum, not against the group count. A share
         // claiming group 7 of 2 is inconsistent, but the reference implementation accepts it,
@@ -208,7 +212,6 @@ impl Share {
         if h.group_count < h.group_threshold {
             return Err(Error::GroupThresholdExceedsCount);
         }
-        let value = value.into();
         if value.len() < MIN_SECRET_BYTES || !value.len().is_multiple_of(2) {
             return Err(Error::InvalidValueLength);
         }
@@ -329,7 +332,20 @@ mod tests {
             assert_eq!(&padded[..word.len()], word.as_bytes());
             assert!(padded[word.len()..].iter().all(|&b| b == 0));
         }
-        for missing in ["", "zzz", "academics", "acadèmic", "123", "a b"] {
+        let missing = [
+            "",
+            "zzz",
+            "academics",
+            "acadèmic",
+            "123",
+            "a b",
+            // Zero bytes must not stand in for the table's padding.
+            "acid\0",
+            "acid\0\0\0\0",
+            "\0acid",
+            "\0",
+        ];
+        for missing in missing {
             assert_eq!(word_index(missing), None, "{missing:?}");
         }
     }

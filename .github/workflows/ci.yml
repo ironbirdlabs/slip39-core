@@ -18,10 +18,14 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
-      - run: cargo check --no-default-features
+      - run: cargo test --no-default-features
       - run: cargo doc --no-deps
         env:
           RUSTDOCFLAGS: -D warnings
+      # The fuzz crate's lockfile records this crate's version and dependencies, so it goes
+      # stale whenever either changes; see CONTRIBUTING.md for the command that refreshes it.
+      - name: Check that fuzz/Cargo.lock is current
+        run: cargo metadata --locked --manifest-path fuzz/Cargo.toml --format-version 1 > /dev/null
 
   interop:
     runs-on: ubuntu-latest
@@ -60,6 +64,12 @@ jobs:
         with:
           toolchain: nightly
       - run: cargo install cargo-fuzz --locked
+      # Random bytes do not get past the word list and the checksum, so decode_raw starts
+      # from real mnemonics: one corpus file for each mnemonic in the reference vectors.
+      - name: Seed the decode_raw corpus
+        run: |
+          mkdir -p fuzz/corpus/decode_raw
+          jq -r '.[][1][]' tests/vectors.json | split -a 3 -l 1 - fuzz/corpus/decode_raw/vector-
       - run: |
           for target in decode_raw decode_words combine; do
             cargo fuzz run "$target" -- -max_total_time=600

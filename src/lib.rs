@@ -1,7 +1,7 @@
 //! A minimal implementation of SLIP-39, Shamir's Secret Sharing for mnemonic codes.
 //!
 //! Written from the specification and tested against the reference implementation
-//! (trezor/python-shamir-mnemonic 0.3.1) and its published test vectors. Includes the
+//! (trezor/python-shamir-mnemonic 0.3.0) and its published test vectors. Includes the
 //! two-level group scheme, passphrase encryption and the extendable backup flag.
 //!
 //! The API has three layers. [`generate_mnemonics`] and [`combine_mnemonics`] do everything
@@ -17,6 +17,7 @@
 //! # Example
 //!
 //! ```
+//! # #[cfg(feature = "getrandom")] {
 //! use slip39_core::{combine_mnemonics, generate_mnemonics, GroupSpec};
 //!
 //! let secret = [0x42u8; 32];
@@ -28,6 +29,7 @@
 //! // Later, with three of them, in any order.
 //! let recovered = combine_mnemonics(&shares[1..4], b"")?;
 //! assert_eq!(*recovered, secret);
+//! # }
 //! # Ok::<(), slip39_core::Error>(())
 //! ```
 
@@ -141,11 +143,13 @@ pub fn generate_mnemonics_with_rng<R: RandomSource + ?Sized>(
 ///     }
 ///     Ok(encrypted.decrypt(passphrase))
 /// }
+/// # #[cfg(feature = "getrandom")] {
 /// # use slip39_core::{generate_mnemonics, GroupSpec};
 /// # let groups = generate_mnemonics(1, &[GroupSpec::new(2, 3)], &[7u8; 16], b"", true, 2)?;
 /// # let shares: Vec<&str> = groups[0].iter().map(String::as_str).collect();
 /// # assert_eq!(*combine_bounded(&shares[..2], b"", 2)?, [7u8; 16]);
 /// # assert_eq!(combine_bounded(&shares[..2], b"", 1), Err(Error::InvalidExponent));
+/// # }
 /// # Ok::<(), Error>(())
 /// ```
 pub fn combine_mnemonics<S: AsRef<str>>(
@@ -169,6 +173,7 @@ pub mod fuzz_hooks {
 }
 
 /// Includes README.md as documentation so its code example is compiled and run by `cargo test`.
-#[cfg(doctest)]
+/// The example draws from the operating system, so it needs the `getrandom` feature.
+#[cfg(all(doctest, feature = "getrandom"))]
 #[doc = include_str!("../README.md")]
 mod readme {}
