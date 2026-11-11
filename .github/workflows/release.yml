@@ -5,7 +5,7 @@ name: Release
 # and the GitHub release from the published commit, so a tag only ever marks a version that
 # actually shipped.
 #
-# The work is split in two jobs. `verify` runs every check, and with them the code those
+# The work is split into two jobs. `verify` runs every check, and with them the code those
 # checks bring in: the test dependencies, the reference implementation from PyPI, cargo-deny.
 # It can read the repository and nothing else. `publish` runs only once `verify` has passed,
 # and is the only job that can obtain a crates.io token or write to the repository; it does
