@@ -20,8 +20,9 @@ slip39-core = "0.1"
 ## Status
 
 Experimental. On every push, CI runs the 45 test vectors published with the reference
-implementation, checks that accepted vectors re-encode to the same words, and exchanges shares
-in both directions with Trezor's Python package (see `tests/interop`). Testing of this kind can
+implementation, checks that accepted vectors re-encode to the same words, exchanges shares in
+both directions with Trezor's Python package, and compares which malformed mnemonics and which
+selections of shares each of the two rejects (see `tests/interop`). Testing of this kind can
 show the presence of defects, not their absence.
 
 Keep an independent backup of any secret you process with this software, and rehearse recovery
@@ -54,7 +55,7 @@ its member threshold of shares; order does not matter, identical duplicates are 
 word case is ignored. The recovered secret is returned in a `Zeroizing<Vec<u8>>`, which attempts
 to overwrite its contents when dropped.
 
-Three more things are exposed for callers that need them:
+Four more things are exposed for callers that need them:
 
 - `Error` is an enum you can match on: which word was invalid, that a checksum failed, that
   shares belong to different sets, how many groups or shares are missing, and so on.
@@ -107,6 +108,8 @@ sed -n '1p;2,4p' shares.txt | cargo run -q --example cli -- combine
 Add `--passphrase-file PATH` to either command to use a passphrase stored in a file whose
 permissions you have restricted, for example with `chmod 600`. Add `--no-ext` to `split` for the
 pre-2024 share format, and `--exponent E` to set the iteration exponent, which defaults to 0.
+A third command, `decode`, reads mnemonics on stdin and prints each share's fields, its value
+included, or the reason it was rejected.
 
 ## Testing
 
@@ -134,9 +137,9 @@ by SLIP-39, not by this crate, so it does not change with the crate version.
 - Buffers holding secrets are wrapped in `Zeroizing`, which attempts to overwrite them when
   dropped. This is best effort: it does not cover copies the compiler, allocator or operating
   system may make, swap, core dumps, or the mnemonic strings returned to you.
-- The GF(256) multiply is written without lookup tables or data-dependent branches, the digest
-  check is a constant-time comparison, and word lookup compares every entry of the list rather
-  than stopping at a match.
+- The GF(256) multiply and the checksum are written without lookup tables or data-dependent
+  branches, the digest check is a constant-time comparison, and word lookup compares every entry
+  of the list rather than stopping at a match.
 - Randomness is requested from the operating system through `getrandom`.
 - Requires Rust 1.87 or newer.
 

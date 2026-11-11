@@ -2,8 +2,8 @@
 //! the encrypted-secret layers, and share construction.
 
 use slip39_core::{
-    combine_mnemonics, generate_mnemonics, generate_mnemonics_with_rng, EncryptedSecret, Error,
-    GroupSpec, RandomSource, Share, ShareHeader,
+    combine_mnemonics, generate_mnemonics_with_rng, EncryptedSecret, Error, GroupSpec,
+    RandomSource, Share, ShareHeader,
 };
 
 /// A deterministic source for tests: a counter fed through a simple mixer.
@@ -34,12 +34,46 @@ fn g(threshold: u8, count: u8) -> GroupSpec {
     GroupSpec::new(threshold, count)
 }
 
+/// Generation from the deterministic source, so that these tests also run without the
+/// `getrandom` feature.
+fn generate(
+    group_threshold: u8,
+    groups: &[GroupSpec],
+    secret: &[u8],
+    passphrase: &[u8],
+    extendable: bool,
+    exponent: u8,
+) -> Result<Vec<Vec<String>>, Error> {
+    let mut rng = Fixed(42);
+    generate_mnemonics_with_rng(
+        group_threshold,
+        groups,
+        secret,
+        passphrase,
+        extendable,
+        exponent,
+        &mut rng,
+    )
+}
+
+/// The one-call form, which draws from the operating system.
+#[cfg(feature = "getrandom")]
+#[test]
+fn os_randomness_round_trip() {
+    let secret = [5u8; 16];
+    let a = slip39_core::generate_mnemonics(1, &[g(2, 3)], &secret, b"", true, 0).unwrap();
+    let b = slip39_core::generate_mnemonics(1, &[g(2, 3)], &secret, b"", true, 0).unwrap();
+    assert_ne!(a, b, "two runs must not produce the same shares");
+    assert_eq!(*combine_mnemonics(&a[0][..2], b"").unwrap(), secret);
+    assert_eq!(*combine_mnemonics(&b[0][1..], b"").unwrap(), secret);
+}
+
 #[test]
 fn group_round_trip() {
     let secret: Vec<u8> = (0..32).collect();
     for extendable in [false, true] {
         let groups = [g(1, 1), g(1, 1), g(3, 5), g(2, 6)];
-        let m = generate_mnemonics(2, &groups, &secret, b"TREZOR", extendable, 0).unwrap();
+        let m = generate(2, &groups, &secret, b"TREZOR", extendable, 0).unwrap();
         assert_eq!(m.iter().map(Vec::len).collect::<Vec<_>>(), [1, 1, 5, 6]);
 
         // Three of group 2 plus two of group 3.
@@ -86,7 +120,7 @@ fn group_round_trip() {
 fn rejects_bad_parameters() {
     let s = [7u8; 16];
     let gen = |t, groups: &[GroupSpec], secret: &[u8], pass: &[u8], e| {
-        generate_mnemonics(t, groups, secret, pass, true, e)
+        generate(t, groups, secret, pass, true, e)
     };
     assert_eq!(
         gen(1, &[g(1, 2)], &s, b"", 0),
@@ -196,6 +230,14 @@ fn word_lookup_ignores_case_and_reports_position() {
     assert_eq!(
         Share::from_mnemonic(&words.join(" ")),
         Err(Error::InvalidWord { position: 5 })
+    );
+
+    // A word followed by a zero byte is not that word.
+    let mut words: Vec<String> = lower.split(' ').map(String::from).collect();
+    words[7].push('\0');
+    assert_eq!(
+        Share::from_mnemonic(&words.join(" ")),
+        Err(Error::InvalidWord { position: 7 })
     );
 }
 

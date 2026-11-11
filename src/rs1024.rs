@@ -13,10 +13,10 @@ fn polymod(values: impl IntoIterator<Item = u32>) -> u32 {
     for v in values {
         let b = chk >> 20;
         chk = ((chk & 0xFFFFF) << 10) ^ v;
+        // A mask rather than a branch: `b` is derived from the words seen so far, which
+        // include the share value.
         for (i, g) in GEN.iter().enumerate() {
-            if (b >> i) & 1 == 1 {
-                chk ^= g;
-            }
+            chk ^= g & 0u32.wrapping_sub((b >> i) & 1);
         }
     }
     chk

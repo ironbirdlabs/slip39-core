@@ -1,6 +1,6 @@
 [package]
 name = "slip39-core"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 rust-version = "1.87"
 authors = ["Ironbird Labs, LLC"]
@@ -32,6 +32,11 @@ zeroize = "1"
 [dev-dependencies]
 hex = "0.4"
 serde_json = "1"
+
+# The example draws its randomness from the operating system.
+[[example]]
+name = "cli"
+required-features = ["getrandom"]
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ["cfg(fuzzing)"] }

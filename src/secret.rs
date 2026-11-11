@@ -53,6 +53,7 @@ pub(crate) fn validate_groups(group_threshold: u8, groups: &[GroupSpec]) -> Resu
 /// # Example
 ///
 /// ```
+/// # #[cfg(feature = "getrandom")] {
 /// use slip39_core::{EncryptedSecret, GroupSpec, OsRandom};
 ///
 /// let secret = [7u8; 16];
@@ -63,6 +64,7 @@ pub(crate) fn validate_groups(group_threshold: u8, groups: &[GroupSpec]) -> Resu
 /// let recovered = EncryptedSecret::recover(&groups[0][1..])?;
 /// assert_eq!(recovered, encrypted);
 /// assert_eq!(*recovered.decrypt(b""), secret);
+/// # }
 /// # Ok::<(), slip39_core::Error>(())
 /// ```
 #[derive(Clone, PartialEq, Eq)]
