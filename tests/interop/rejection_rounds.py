@@ -93,7 +93,7 @@ def as_text(words):
     if kind == 2:
         return "\t".join(w)
     if kind == 3:
-        return " ".join(w)  # no-break spaces, which both treat as spaces
+        return "\u00a0".join(w)  # no-break spaces, which both treat as spaces
     if kind == 4:
         return ",".join(w)
     if kind == 5:
@@ -109,7 +109,7 @@ def as_text(words):
     elif kind == 10:
         w[k] = "\0" + w[k]
     else:
-        w[k] += "​"  # zero-width space, which neither treats as a space
+        w[k] += "\u200b"  # zero-width space, which neither treats as a space
     return " ".join(w)
 
 

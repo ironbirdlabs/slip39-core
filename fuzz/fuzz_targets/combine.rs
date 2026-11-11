@@ -4,11 +4,11 @@
 //! parameters within the specification's limits are accepted, and, when nothing was mutated,
 //! that a successful recovery returns the value that was split.
 //!
-//! The passphrase cipher is left out. It would add two PBKDF2 runs to every execution, many
-//! times the cost of everything else here, and it has no input-dependent paths for a fuzzer to
-//! find; the reference vectors and the interoperability check cover it. The value is therefore
-//! planted as the encrypted secret directly, through a 1-of-1 share. Randomness is derived from
-//! the input, so that an input that fails once fails again when replayed.
+//! The passphrase cipher is left out. It would add two PBKDF2 runs to every execution, and it
+//! has no input-dependent paths for a fuzzer to find; the reference vectors and the
+//! interoperability check cover it. The value is therefore planted as the encrypted secret
+//! directly, through a 1-of-1 share. Randomness is derived from the input, so that an input
+//! that fails once fails again when replayed.
 
 use arbitrary::Arbitrary;
 use libfuzzer_sys::fuzz_target;

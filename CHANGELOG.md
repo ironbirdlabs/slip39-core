@@ -11,12 +11,12 @@ Follow-ups from a second review. No change to the share format or the public API
 
 - Fixed: a word followed by zero bytes, such as `"acid\0"`, was accepted as the word itself,
   because the lookup table pads short words with zero bytes. Words must now consist of ASCII
-  letters, as the reference implementation requires. The share decoded from such input was the
-  one the words spelled, so no wrong secret could result.
+  letters, so such input is rejected, as it is by the reference implementation. The share
+  decoded from such input was the one the words spelled, so no wrong secret could result.
 - The RS1024 checksum is computed with masks rather than branches that depend on the share
   value.
 - `Share::new` wraps the value before it checks the header, so a value passed as a plain
-  `Vec<u8>` is overwritten when the header is rejected too.
+  `Vec<u8>` is also overwritten when the header is rejected.
 - `cargo test --no-default-features` builds and passes, and CI runs it in place of
   `cargo check`: the tests take their randomness from a fixed source, the documentation
   examples that draw from the operating system are compiled only with the `getrandom` feature,
@@ -26,8 +26,8 @@ Follow-ups from a second review. No change to the share format or the public API
   malformed mnemonics and which selections of shares each of the two rejects. The CLI example
   gains a `decode` command for it.
 - Fuzzing: `decode_raw` checks that an accepted mnemonic is its own encoding, and CI seeds its
-  corpus from the reference vectors; `combine` no longer runs the passphrase cipher on every
-  execution, and takes its randomness from the input so that a failure can be replayed.
+  corpus from the reference vectors; `combine` no longer runs the passphrase cipher, and takes
+  its randomness from the input so that a failure can be replayed.
 - The release workflow runs its checks in a job that holds no credentials; only a second job,
   which publishes, tags and releases, can obtain a crates.io token or write to the repository.
 - `fuzz/Cargo.lock` is current again, and CI checks that it stays so.
