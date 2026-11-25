@@ -4,8 +4,8 @@ use zeroize::Zeroizing;
 
 use crate::{Error, Secret};
 
-/// A source of random bytes suitable for key material. Implement it to supply randomness from
-/// a device or a host environment.
+/// A source of random bytes, which this crate uses as key material without assessing their
+/// quality. Implement it to supply randomness from a device or a host environment.
 ///
 /// # Example
 ///

@@ -4,6 +4,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
+use subtle::ConstantTimeEq;
 use zeroize::Zeroizing;
 
 use crate::cipher::feistel;
@@ -60,20 +61,40 @@ pub(crate) fn validate_groups(group_threshold: u8, groups: &[GroupSpec]) -> Resu
 /// let encrypted = EncryptedSecret::encrypt(&secret, b"", true, 1, &mut OsRandom)?;
 /// let groups = encrypted.split(1, &[GroupSpec::new(2, 3)], &mut OsRandom)?;
 ///
-/// // Any two of the three shares rebuild the same encrypted value.
+/// // Two of the three shares, here the last two, rebuild the encrypted value.
 /// let recovered = EncryptedSecret::recover(&groups[0][1..])?;
 /// assert_eq!(recovered, encrypted);
 /// assert_eq!(*recovered.decrypt(b""), secret);
 /// # }
 /// # Ok::<(), slip39_core::Error>(())
 /// ```
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct EncryptedSecret {
     identifier: u16,
     extendable: bool,
     iteration_exponent: u8,
     ciphertext: Secret,
 }
+
+/// Equality compares the identifier, flag and exponent, which every share header carries in
+/// the open, and then the ciphertext bytes with the `subtle` crate's comparison, which is
+/// intended not to stop at the first difference. No constant-time behaviour is promised.
+impl PartialEq for EncryptedSecret {
+    fn eq(&self, other: &Self) -> bool {
+        // Ciphertexts of different lengths compare unequal at once; the length is treated as
+        // public.
+        self.identifier == other.identifier
+            && self.extendable == other.extendable
+            && self.iteration_exponent == other.iteration_exponent
+            && bool::from(
+                self.ciphertext
+                    .as_slice()
+                    .ct_eq(other.ciphertext.as_slice()),
+            )
+    }
+}
+
+impl Eq for EncryptedSecret {}
 
 impl fmt::Debug for EncryptedSecret {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -143,6 +164,11 @@ impl EncryptedSecret {
 
     /// Decrypt with `passphrase`. As the specification defines it, a wrong passphrase yields a
     /// different secret rather than an error.
+    ///
+    /// The passphrase is not checked here, although [`EncryptedSecret::encrypt`] accepts only
+    /// printable ASCII. A passphrase containing other bytes is treated, like a mistyped one, as
+    /// simply a different passphrase, so that one accepted by other software is not refused.
+    /// The reference implementation does the same.
     pub fn decrypt(&self, passphrase: &[u8]) -> Zeroizing<Vec<u8>> {
         feistel(
             &self.ciphertext,

@@ -10,7 +10,7 @@ const BASE_ITERATIONS: u32 = 10_000;
 const ROUNDS: u8 = 4;
 
 /// Encrypt, or decrypt when `decrypt` is set. `data` must have an even length; callers check
-/// this before calling.
+/// this before calling, and the assertion is there for a caller that does not.
 pub(crate) fn feistel(
     data: &[u8],
     passphrase: &[u8],
@@ -19,7 +19,10 @@ pub(crate) fn feistel(
     extendable: bool,
     decrypt: bool,
 ) -> Secret {
-    debug_assert!(data.len().is_multiple_of(2));
+    assert!(
+        data.len().is_multiple_of(2),
+        "cipher input must have an even length"
+    );
     let salt: Vec<u8> = if extendable {
         Vec::new()
     } else {
@@ -46,4 +49,15 @@ pub(crate) fn feistel(
     out.extend_from_slice(&r);
     out.extend_from_slice(&l);
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic(expected = "cipher input must have an even length")]
+    fn an_odd_length_input_is_refused() {
+        let _ = feistel(&[0u8; 17], b"", 0, 0, true, false);
+    }
 }

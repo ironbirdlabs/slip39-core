@@ -35,14 +35,14 @@ use slip39_core::GroupSpec;
 
 let secret = [0x42u8; 32];
 
-// Two groups: a 1-of-1 and a 3-of-5. Either group alone is not enough; both are needed.
+// Two groups, a 1-of-1 and a 3-of-5, with a group threshold of 2, which asks for both.
 let groups = [GroupSpec::new(1, 1), GroupSpec::new(3, 5)];
 let groups = slip39_core::generate_mnemonics(2, &groups, &secret, b"", true, 1)
     .expect("parameters accepted");
 assert_eq!(groups[0].len(), 1);
 assert_eq!(groups[1].len(), 5);
 
-// Recover from the single share of group 0 plus any three of group 1.
+// Recover from the single share of group 0 plus three of group 1.
 let picked: Vec<&str> = groups[0].iter().chain(&groups[1][..3]).map(String::as_str).collect();
 let recovered = slip39_core::combine_mnemonics(&picked, b"").expect("shares combined");
 assert_eq!(*recovered, secret);
@@ -89,7 +89,7 @@ tool built on this crate that backs up a key file as shares.
 - **Passphrase.** Optional. Left empty, the shares alone recover the secret. See "Things to
   know" below for how a wrong passphrase behaves.
 - **Secret size.** 32 bytes for a key; 16 bytes when a 128-bit secret is all that is needed.
-  These are the two sizes every SLIP-39 implementation supports.
+  These are the two sizes the specification requires implementations to support.
 
 ## Command line
 
@@ -124,7 +124,7 @@ cargo +nightly fuzz run decode_words         # needs cargo-fuzz; see fuzz/ for t
 
 Version numbers follow semantic versioning. While the version is 0.x, a breaking API change
 bumps the minor version, with the change noted in `CHANGELOG.md`. The share format is defined
-by SLIP-39, not by this crate, so it does not change with the crate version.
+by SLIP-39, not by this crate, so it is not expected to change with the crate version.
 
 ## Things to know
 
@@ -137,9 +137,12 @@ by SLIP-39, not by this crate, so it does not change with the crate version.
 - Buffers holding secrets are wrapped in `Zeroizing`, which attempts to overwrite them when
   dropped. This is best effort: it does not cover copies the compiler, allocator or operating
   system may make, swap, core dumps, or the mnemonic strings returned to you.
-- The GF(256) multiply and the checksum are written without lookup tables or data-dependent
-  branches, the digest check is a constant-time comparison, and word lookup compares every entry
-  of the list rather than stopping at a match.
+- Some care is taken over side channels, with no promise of constant-time behaviour, since
+  compilers may transform the code. The GF(256) multiply and the checksum are written without
+  lookup tables or data-dependent branches. The digest check and equality on `Share` and
+  `EncryptedSecret` compare secret bytes with the `subtle` crate's comparison, which is intended
+  not to stop at the first difference. Word lookup compares every entry of the list rather than
+  stopping at a match.
 - Randomness is requested from the operating system through `getrandom`.
 - Requires Rust 1.87 or newer.
 

@@ -320,3 +320,59 @@ fn share_constructor_validates() {
         Err(Error::InvalidValueLength)
     );
 }
+
+#[test]
+fn equality_compares_the_header_and_every_byte() {
+    let header = ShareHeader {
+        identifier: 1,
+        extendable: true,
+        iteration_exponent: 0,
+        group_index: 0,
+        group_threshold: 1,
+        group_count: 1,
+        member_index: 0,
+        member_threshold: 1,
+    };
+    let share = |header: ShareHeader, value: &[u8]| Share::new(header, value.to_vec()).unwrap();
+    // The encrypted secret a 1-of-1 share stands for, which needs no key derivation to build.
+    let encrypted = |header: ShareHeader, value: &[u8]| {
+        EncryptedSecret::recover(&[share(header, value)]).unwrap()
+    };
+
+    let value = [7u8; 16];
+    let (mut first, mut last) = (value, value);
+    first[0] ^= 1;
+    last[15] ^= 1;
+    let longer = [7u8; 18];
+
+    assert_eq!(share(header, &value), share(header, &value));
+    assert_eq!(encrypted(header, &value), encrypted(header, &value));
+    // A difference in the first byte, in the last byte, or in length.
+    for other in [&first[..], &last[..], &longer[..]] {
+        assert_ne!(share(header, &value), share(header, other));
+        assert_ne!(encrypted(header, &value), encrypted(header, other));
+    }
+    // A difference in the public fields alone.
+    let moved = ShareHeader {
+        member_index: 1,
+        ..header
+    };
+    assert_ne!(share(header, &value), share(moved, &value));
+    for other in [
+        ShareHeader {
+            identifier: 2,
+            ..header
+        },
+        ShareHeader {
+            extendable: false,
+            ..header
+        },
+        ShareHeader {
+            iteration_exponent: 1,
+            ..header
+        },
+    ] {
+        assert_ne!(share(header, &value), share(other, &value));
+        assert_ne!(encrypted(header, &value), encrypted(other, &value));
+    }
+}

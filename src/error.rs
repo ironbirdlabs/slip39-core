@@ -18,7 +18,7 @@ use std::fmt;
 ///     other => panic!("unexpected: {other:?}"),
 /// }
 ///
-/// // One share of a 2-of-3 set: recovery says exactly what is missing.
+/// // One share of a 2-of-3 set: the error reports what is missing.
 /// let one = "shadow pistol academic always adequate wildlife fancy gross oasis cylinder \
 ///            mustang wrist rescue view short owner flip making coding armed";
 /// match combine_mnemonics(&[one], b"") {
