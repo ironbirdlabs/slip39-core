@@ -25,14 +25,18 @@ fn digest(random: &[u8], secret: &[u8]) -> [u8; DIGEST_LEN] {
 }
 
 /// Split `secret` into `count` shares of which any `threshold` recover it. Callers validate
-/// the parameters before reaching here.
+/// the parameters before reaching here; the assertion is there for a caller that does not,
+/// since shares made from parameters out of range may be impossible to recover.
 pub(crate) fn split_secret<R: RandomSource + ?Sized>(
     rng: &mut R,
     threshold: u8,
     count: u8,
     secret: &[u8],
 ) -> Result<Vec<(u8, Secret)>, Error> {
-    debug_assert!((1..=count).contains(&threshold) && count <= MAX_SHARE_COUNT);
+    assert!(
+        (1..=count).contains(&threshold) && count <= MAX_SHARE_COUNT,
+        "sharing parameters out of range: {threshold} of {count}"
+    );
     if threshold == 1 {
         return Ok((0..count)
             .map(|i| (i, Zeroizing::new(secret.to_vec())))
@@ -70,4 +74,37 @@ pub(crate) fn recover_secret(threshold: u8, shares: &[(u8, &[u8])]) -> Result<Se
         return Err(Error::Digest);
     }
     Ok(secret)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Fails if asked for anything, so a call that got past the assertion would return an
+    /// error rather than panic, and the test would fail.
+    struct Unused;
+
+    impl RandomSource for Unused {
+        fn fill(&mut self, _: &mut [u8]) -> Result<(), Error> {
+            Err(Error::Random)
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "sharing parameters out of range")]
+    fn a_threshold_of_zero_is_refused() {
+        let _ = split_secret(&mut Unused, 0, 3, &[0u8; 16]);
+    }
+
+    #[test]
+    #[should_panic(expected = "sharing parameters out of range")]
+    fn a_threshold_above_the_count_is_refused() {
+        let _ = split_secret(&mut Unused, 4, 3, &[0u8; 16]);
+    }
+
+    #[test]
+    #[should_panic(expected = "sharing parameters out of range")]
+    fn a_count_above_the_maximum_is_refused() {
+        let _ = split_secret(&mut Unused, 2, MAX_SHARE_COUNT + 1, &[0u8; 16]);
+    }
 }

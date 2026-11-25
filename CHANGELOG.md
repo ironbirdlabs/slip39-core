@@ -5,6 +5,20 @@ format. Version numbers follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-11-25
+
+Follow-ups from a third review. No change to the share format or the public API.
+
+- Equality on `Share` and `EncryptedSecret` compares the secret bytes with the `subtle` crate's
+  comparison, which is intended not to stop at the first difference. The public fields are
+  compared as before.
+- The documentation of `EncryptedSecret::decrypt` and `combine_mnemonics` says that the
+  passphrase is checked for printable ASCII when encrypting but not when decrypting, so that a
+  passphrase other software accepted is not refused on recovery.
+- Two internal preconditions, the range of the sharing parameters and the even length of the
+  cipher's input, are checked in release builds too. No caller in the crate is known to violate
+  either.
+
 ## [0.1.3] - 2026-11-11
 
 Follow-ups from a second review. No change to the share format or the public API.
@@ -12,11 +26,11 @@ Follow-ups from a second review. No change to the share format or the public API
 - Fixed: a word followed by zero bytes, such as `"acid\0"`, was accepted as the word itself,
   because the lookup table pads short words with zero bytes. Words must now consist of ASCII
   letters, so such input is rejected, as it is by the reference implementation. The share
-  decoded from such input was the one the words spelled, so no wrong secret could result.
+  decoded from such input was the one the words spelled; the change is to what is accepted.
 - The RS1024 checksum is computed with masks rather than branches that depend on the share
   value.
-- `Share::new` wraps the value before it checks the header, so a value passed as a plain
-  `Vec<u8>` is also overwritten when the header is rejected.
+- `Share::new` wraps the value before it checks the header, so that the attempt to overwrite it
+  is also made for a value passed as a plain `Vec<u8>` when the header is rejected.
 - `cargo test --no-default-features` builds and passes, and CI runs it in place of
   `cargo check`: the tests take their randomness from a fixed source, the documentation
   examples that draw from the operating system are compiled only with the `getrandom` feature,
@@ -28,8 +42,9 @@ Follow-ups from a second review. No change to the share format or the public API
 - Fuzzing: `decode_raw` checks that an accepted mnemonic is its own encoding, and CI seeds its
   corpus from the reference vectors; `combine` no longer runs the passphrase cipher, and takes
   its randomness from the input so that a failure can be replayed.
-- The release workflow runs its checks in a job that holds no credentials; only a second job,
-  which publishes, tags and releases, can obtain a crates.io token or write to the repository.
+- The release workflow runs its checks in a job given read-only access. The permissions to
+  request a crates.io token and to write to the repository are granted only to a second job,
+  which publishes, tags and releases.
 - `fuzz/Cargo.lock` is current again, and CI checks that it stays so.
 - Documentation: the reference implementation tested against is 0.3.0, not 0.3.1, and the
   dependency count in `CONTRIBUTING.md` is six.
@@ -75,7 +90,8 @@ First release.
 - Tests: the 45 reference vectors with expected error variants, black-box API tests, a two-way
   interoperability check against the reference Python implementation, and three fuzz targets.
 
-[Unreleased]: https://github.com/ironbirdlabs/slip39-core/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/ironbirdlabs/slip39-core/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/ironbirdlabs/slip39-core/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/ironbirdlabs/slip39-core/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/ironbirdlabs/slip39-core/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/ironbirdlabs/slip39-core/compare/v0.1.0...v0.1.1

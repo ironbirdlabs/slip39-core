@@ -22,7 +22,7 @@
 //!
 //! let secret = [0x42u8; 32];
 //!
-//! // One group of five shares, any three of which recover the secret.
+//! // One group of five shares with a threshold of three.
 //! let groups = generate_mnemonics(1, &[GroupSpec::new(3, 5)], &secret, b"", true, 1)?;
 //! let shares: Vec<&str> = groups[0].iter().map(String::as_str).collect();
 //!
@@ -117,6 +117,11 @@ pub fn generate_mnemonics_with_rng<R: RandomSource + ?Sized>(
 /// Recover the master secret from exactly a threshold number of groups, each holding exactly
 /// its member threshold of mnemonics. Order does not matter, identical duplicates are ignored,
 /// and word case is ignored. The result is returned in a [`Zeroizing`] wrapper.
+///
+/// A wrong passphrase yields a different secret rather than an error, as the specification
+/// defines it. The passphrase is checked for printable ASCII when shares are generated but not
+/// here, so that a passphrase other software accepted is not refused; see
+/// [`EncryptedSecret::decrypt`].
 ///
 /// The shares decide the cost of this call: the passphrase cipher runs PBKDF2 for
 /// `10000 << e` iterations at the iteration exponent they carry, which is over three hundred

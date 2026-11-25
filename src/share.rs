@@ -175,11 +175,24 @@ impl ShareHeader {
 /// assert_eq!(share.to_mnemonic(), words);
 /// # Ok::<(), slip39_core::Error>(())
 /// ```
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct Share {
     header: ShareHeader,
     value: Secret,
 }
+
+/// Equality compares the headers, which are public, and then the value bytes with the `subtle`
+/// crate's comparison, which is intended not to stop at the first difference. No constant-time
+/// behaviour is promised.
+impl PartialEq for Share {
+    fn eq(&self, other: &Self) -> bool {
+        // Values of different lengths compare unequal at once; the length is treated as public.
+        self.header == other.header
+            && bool::from(self.value.as_slice().ct_eq(other.value.as_slice()))
+    }
+}
+
+impl Eq for Share {}
 
 impl fmt::Debug for Share {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
