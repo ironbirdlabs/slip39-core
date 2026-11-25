@@ -18,6 +18,8 @@ Follow-ups from a third review. No change to the share format or the public API.
 - Two internal preconditions, the range of the sharing parameters and the even length of the
   cipher's input, are checked in release builds too. No caller in the crate is known to violate
   either.
+- README: a new opening that says what SLIP-39 is for, the stated size brought up to date, and
+  the remark about Trezor firmware dropped.
 
 ## [0.1.3] - 2026-11-11
 
