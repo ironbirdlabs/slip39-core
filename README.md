@@ -4,13 +4,20 @@
 [![crates.io](https://img.shields.io/crates/v/slip39-core.svg)](https://crates.io/crates/slip39-core)
 [![docs.rs](https://docs.rs/slip39-core/badge.svg)](https://docs.rs/slip39-core)
 
-A minimal Rust implementation of [SLIP-39](https://github.com/satoshilabs/slips/blob/master/slip-0039.md),
-Shamir's Secret Sharing for mnemonic codes. It splits a secret of 16 bytes or more into groups
-of word lists and attempts to recover it from a threshold of them. It is intended to follow the
-SLIP-39 specification published by SatoshiLabs.
+[SLIP-39](https://github.com/satoshilabs/slips/blob/master/slip-0039.md), Shamir's Secret
+Sharing for mnemonic codes, is a standard for splitting a secret, such as an encryption key, into
+several lists of words that can be kept in different places or by different people. Each list is
+a share. As the specification describes it, a number of shares chosen when splitting is needed to
+reconstruct the secret, and fewer than that reveal nothing about it.
 
-About 850 lines and six dependencies. It includes the two-level group scheme, the passphrase
-cipher, and the extendable backup flag.
+This crate is a small Rust implementation of that standard. It splits a secret of 16 bytes or
+more into groups of word lists and attempts to recover it from a threshold of them, and it is
+intended to follow the SLIP-39 specification published by SatoshiLabs. It includes the two-level
+group scheme, the passphrase cipher, and the extendable backup flag.
+
+About 1,350 lines of Rust in `src/`, comments and tests included, and six dependencies. It is
+written from the specification, and CI tests it against the reference implementation; "Status"
+below says what those tests cover and what they cannot show.
 
 ```toml
 [dependencies]
@@ -77,9 +84,8 @@ tool built on this crate that backs up a key file as shares.
   consisting of a 1-of-1, a 1-of-1, a 3-of-5 and a 2-of-6. A group with threshold 1 may hold
   only one member; the specification forbids more because any one of them alone would carry the
   whole group's share.
-- **Extendable.** The specification says newly created shares should set this flag, and current
-  Trezor firmware does. Clear it only to produce the pre-2024 format for software that predates
-  the flag.
+- **Extendable.** The specification says newly created shares should set this flag. Clear it only
+  to produce the pre-2024 format for software that predates the flag.
 - **Iteration exponent.** The passphrase cipher runs PBKDF2 for `10000 << e` iterations. The
   reference implementation's default is 1, about 20,000 iterations, which takes a fraction of a
   second on a laptop. Higher values make guessing a passphrase slower, and recovery slower by
